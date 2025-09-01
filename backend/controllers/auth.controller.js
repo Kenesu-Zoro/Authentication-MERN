@@ -2,6 +2,7 @@ import express from "express";
 import { User } from '../models/user.model.js'
 import bcrypt from 'bcrypt';
 import generateTokenAndSetCookie from "../utils/generateTokenAndSetCookie.js";
+import {sendVerificationEmail} from "../mailtrap/emails.js";
 
 export const defaultPage = async (req, res) => {
     res.send("Welcome to the Authentication API");
@@ -43,6 +44,8 @@ export const signUp = async (req, res) => {
 
         //jwt
         generateTokenAndSetCookie(res, user._id);
+        //mailtrap
+        await sendVerificationEmail(user.email, verificationToken);
 
         res.status(201).json({
              success: true,
