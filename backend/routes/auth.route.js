@@ -4,9 +4,9 @@ import { signUp, login, logout, defaultPage } from '../controllers/auth.controll
 const Router = express.Router();
 
 Router.route("/").get(defaultPage);  // useful to chain requests to the same endpoint.
-Router.route("/signup").get(signUp);
-Router.route("/login").get(login);
-Router.route("/logout").get(logout);    
+Router.route("/signup").post(signUp);
+Router.route("/login").post(login);
+Router.route("/logout").post(logout);    
 
 // Router.get("/", defaultPage); best for single method of request.
 

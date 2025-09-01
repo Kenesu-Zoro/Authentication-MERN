@@ -1,6 +1,7 @@
 import express from "express";
 import { User } from '../models/user.model.js'
 import bcrypt from 'bcrypt';
+import generateTokenAndSetCookie from "../utils/generateTokenAndSetCookie.js";
 
 export const defaultPage = async (req, res) => {
     res.send("Welcome to the Authentication API");
@@ -9,12 +10,13 @@ export const defaultPage = async (req, res) => {
 export const signUp = async (req, res) => {
     try {
         const { email, password, name } = req.body;
-
+        
         try {
+            
             if (!email || !password || !name) {
-                throw new Error("All credentials are required")
+                throw new Error("All credentials are required");
             }
-
+            
             const userAlreadyExists = await User.findOne({ email });
 
             if (userAlreadyExists) {
@@ -38,6 +40,18 @@ export const signUp = async (req, res) => {
         })
 
         await user.save();
+
+        //jwt
+        generateTokenAndSetCookie(res, user._id);
+
+        res.status(201).json({
+             success: true,
+             message: "User created successfully!", 
+            user : {
+                ...user._doc,
+                password: undefined
+            }
+        });
 
 
     } catch (error) {
