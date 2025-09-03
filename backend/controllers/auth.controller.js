@@ -102,9 +102,10 @@ export const verifyEmail = async (req, res) => {
 }
 
 export const login = async (req, res) => {
-    res.send("LOGIN");
+   
 }
 
 export const logout = async (req, res) => {
-    res.send("LOGOUT");
+    res.clearCookie("token");
+    res.status(200).json({ success: true, message: "Logged out successfully" });
 }
