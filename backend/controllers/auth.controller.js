@@ -3,7 +3,7 @@ import { User } from '../models/user.model.js'
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import generateTokenAndSetCookie from "../utils/generateTokenAndSetCookie.js";
-import { sendVerificationEmail, sendWelcomeEmail , sendPasswordResetEmail} from "../mailtrap/emails.js";
+import { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail, sendResetSuccessEmail } from "../mailtrap/emails.js";
 
 export const defaultPage = async (req, res) => {
     res.send("Welcome to the Authentication API");
@@ -90,7 +90,11 @@ export const verifyEmail = async (req, res) => {
 
         await user.save();
 
-        await sendWelcomeEmail(user.email, user.name);
+        try {
+            await sendWelcomeEmail(user.email, user.name || user.email.split("@")[0]);
+        } catch (e) {
+            console.error("Welcome email failed:", e); // keep going
+        }
 
         res.status(200).json({
             success: true, message: "Email verified successfully", user: {
@@ -100,7 +104,7 @@ export const verifyEmail = async (req, res) => {
         });
 
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Internal Server Error" });
+        return res.status(500).json({ success: false, message: "Internal Server Error1" });
     }
 }
 
@@ -148,13 +152,13 @@ export const logout = async (req, res) => {
     res.status(200).json({ success: true, message: "Logged out successfully" });
 }
 
-export const forgotPassword = async ( req, res) => {
-    const {email} = req.body;
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
 
     try {
-        const user = await User.findOne({email});
+        const user = await User.findOne({ email });
 
-        if(!user){
+        if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
@@ -173,5 +177,36 @@ export const forgotPassword = async ( req, res) => {
     } catch (error) {
         console.error("Error sending password reset email", error);
         throw new Error(`Error sending email ${error}`)
+    }
+}
+
+export const resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    try {
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpiresAt: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Invalid or expired reset token" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpiresAt = undefined;
+
+        await user.save();
+
+        await sendResetSuccessEmail(user.email);
+
+        res.status(200).json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+        console.error("Error resetting password:", error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 }

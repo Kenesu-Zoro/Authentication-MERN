@@ -1,49 +1,27 @@
-import { MailtrapClient } from "mailtrap";
-import dotenv from "dotenv";    
-
+// mailer.js
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 dotenv.config();
 
-const TOKEN = process.env.MAILTRAP_API_TOKEN;
-const ENDPOINT = process.env.MAILTRAP_API_ENDPOINT;
-
-export const mailtrapClient = new MailtrapClient({
-  endpoint: ENDPOINT,
-  token: TOKEN,
+export const transporter = nodemailer.createTransport({
+  host: process.env.MAILTRAP_HOST,                 // e.g. sandbox.smtp.mailtrap.io
+  port: Number(process.env.MAILTRAP_PORT || 587),  // 587 or 2525
+  auth: {
+    user: process.env.MAILTRAP_USER,
+    pass: process.env.MAILTRAP_PASS,
+  },
 });
 
 export const sender = {
-  email: "hello@demomailtrap.co",
-  name: "Homelander🍼",
+  email: process.env.FROM_EMAIL,       // e.g. no-reply@yourapp.test (Sandbox accepts any)
+  name: process.env.FROM_NAME || "Your App",
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const recipients = [
-//   {
-//     email: "kennethdcosta29@gmail.com",
-//   }
-// ];
-
-// client
-//   .send({
-//     from: sender,
-//     to: recipients,
-//     subject: "You are awesome!",
-//     text: "Congrats for sending test email with Mailtrap!",
-//     category: "Integration Test",
-//   })
-//   .then(console.log, console.error);
+export async function sendEmail({ to, subject, html }) {
+  return transporter.sendMail({
+    from: `"${sender.name}" <${sender.email}>`,
+    to,
+    subject,
+    html,
+  });
+}
