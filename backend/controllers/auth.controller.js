@@ -1,8 +1,9 @@
 import express from "express";
 import { User } from '../models/user.model.js'
+import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import generateTokenAndSetCookie from "../utils/generateTokenAndSetCookie.js";
-import {sendVerificationEmail, sendWelcomeEmail} from "../mailtrap/emails.js";
+import { sendVerificationEmail, sendWelcomeEmail , sendPasswordResetEmail} from "../mailtrap/emails.js";
 
 export const defaultPage = async (req, res) => {
     res.send("Welcome to the Authentication API");
@@ -11,13 +12,13 @@ export const defaultPage = async (req, res) => {
 export const signUp = async (req, res) => {
     try {
         const { email, password, name } = req.body;
-        
+
         try {
-            
+
             if (!email || !password || !name) {
                 throw new Error("All credentials are required");
             }
-            
+
             const userAlreadyExists = await User.findOne({ email });
 
             if (userAlreadyExists) {
@@ -48,9 +49,9 @@ export const signUp = async (req, res) => {
         await sendVerificationEmail(user.email, verificationToken);
 
         res.status(201).json({
-             success: true,
-             message: "User created successfully!", 
-            user : {
+            success: true,
+            message: "User created successfully!",
+            user: {
                 ...user._doc,
                 password: undefined
             }
@@ -63,9 +64,9 @@ export const signUp = async (req, res) => {
 };
 
 export const verifyEmail = async (req, res) => {
-    const {code} = req.body;
+    const { code } = req.body;
 
-    if(!code){
+    if (!code) {
         return res.status(400).json({ success: false, message: "Verification code is required" });
     }
 
@@ -77,10 +78,10 @@ export const verifyEmail = async (req, res) => {
             }
         )
 
-        if(!user){
+        if (!user) {
             return res
-            .status(400)
-            .json({ success: false, message: "Invalid or expired verification code" });
+                .status(400)
+                .json({ success: false, message: "Invalid or expired verification code" });
         }
 
         user.isVerified = true;
@@ -91,10 +92,12 @@ export const verifyEmail = async (req, res) => {
 
         await sendWelcomeEmail(user.email, user.name);
 
-        res.status(200).json({ success: true, message: "Email verified successfully", user: {
-            ...user._doc,
-            password: undefined
-        }});
+        res.status(200).json({
+            success: true, message: "Email verified successfully", user: {
+                ...user._doc,
+                password: undefined
+            }
+        });
 
     } catch (error) {
         return res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -102,10 +105,73 @@ export const verifyEmail = async (req, res) => {
 }
 
 export const login = async (req, res) => {
-   
+    const { email, password } = req.body;
+
+    try {
+        const user = await User.findOne({ email })
+        // console.log("User:", user);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Invalid Credentials1" });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ success: false, message: "Invalid credentials2" });
+        }
+
+        await generateTokenAndSetCookie(res, user._id);
+
+        user.lastLogin = new Date();
+
+        await user.save();
+
+        res.status(200)
+            .json({
+                success: true,
+                message: "Logged in successfully",
+                user: {
+                    ...user._doc,
+                    password: undefined
+                }
+            });
+
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
 }
 
 export const logout = async (req, res) => {
     res.clearCookie("token");
     res.status(200).json({ success: true, message: "Logged out successfully" });
+}
+
+export const forgotPassword = async ( req, res) => {
+    const {email} = req.body;
+
+    try {
+        const user = await User.findOne({email});
+
+        if(!user){
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const resetToken = crypto.randomBytes(20).toString("hex");
+
+        user.resetPasswordToken = resetToken;
+        user.resetPasswordExpiresAt = Date.now() + 900 * 1000; // 15 minutes
+
+        await user.save();
+
+        //send email
+        await sendPasswordResetEmail(user.email, `http://localhost:5173/reset-password/${resetToken}`);
+
+        res.status(200).json({ success: true, message: "Password reset email sent" });
+
+    } catch (error) {
+        console.error("Error sending password reset email", error);
+        throw new Error(`Error sending email ${error}`)
+    }
 }
